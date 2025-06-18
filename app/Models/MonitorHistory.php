@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class MonitorHistory extends Model
 {
@@ -27,11 +28,11 @@ class MonitorHistory extends Model
         $sevenDaysAgo = Carbon::now()->subDays(6)->startOfDay();
         
         return self::where('checked_at', '>=', $sevenDaysAgo)
-            ->selectRaw('DATE(checked_at) as date')
+            ->select(DB::raw('DATE(checked_at) as date'))
             ->selectRaw('COUNT(CASE WHEN status IN (8, 9) THEN 1 END) as down_count')
             ->selectRaw('COUNT(*) as total_checks')
             ->selectRaw('AVG(uptime_ratio) as avg_uptime')
-            ->groupBy('date')
+            ->groupBy(DB::raw('DATE(checked_at)'))
             ->orderBy('date')
             ->get();
     }
@@ -39,8 +40,9 @@ class MonitorHistory extends Model
     public static function getTodayIncidents()
     {
         return self::where('checked_at', '>=', Carbon::today())
-            ->where('status', 'IN', [8, 9])
-            ->selectRaw('monitor_name, COUNT(*) as incident_count')
+            ->whereIn('status', [8, 9])
+            ->select('monitor_name')
+            ->selectRaw('COUNT(*) as incident_count')
             ->groupBy('monitor_name')
             ->orderByDesc('incident_count')
             ->get();
