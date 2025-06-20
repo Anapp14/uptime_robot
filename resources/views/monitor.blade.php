@@ -114,6 +114,69 @@
             color: #a0a0a0;
         }
         
+        .history-section {
+            background: rgba(44, 44, 62, 0.8);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 30px;
+        }
+        
+        .history-section h3 {
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .history-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+        }
+        
+        .weekly-chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .history-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .history-stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .history-stat-card h4 {
+            color: #ffffff;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .history-stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .history-stat-label {
+            font-size: 0.8rem;
+            color: #a0a0a0;
+        }
+        
         .servers-table-container {
             background: rgba(44, 44, 62, 0.8);
             border-radius: 15px;
@@ -265,6 +328,10 @@
                 grid-template-columns: 1fr;
             }
             
+            .history-grid {
+                grid-template-columns: 1fr;
+            }
+            
             .incidents-panel {
                 max-height: 300px;
             }
@@ -318,6 +385,18 @@
         </div>
     </div>
     
+    <div class="history-section">
+        <h3>📈 7-Day History & Trends</h3>
+        <div class="history-grid">
+            <div class="weekly-chart-container">
+                <canvas id="weeklyChart"></canvas>
+            </div>
+            <div class="history-stats" id="historyStats">
+                <!-- History stats will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
     <div class="servers-table-container">
         <h3>📋 All Servers Status</h3>
         <table class="servers-table">
@@ -339,11 +418,13 @@
     <script>
         let countdown = 30;
         let statusChart = null;
+        let weeklyChart = null;
         
         // Initialize Chart.js
-        function initChart() {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            statusChart = new Chart(ctx, {
+        function initCharts() {
+            // Status Chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            statusChart = new Chart(statusCtx, {
                 type: 'doughnut',
                 data: {
                     labels: ['Up', 'Down', 'Paused', 'Unknown'],
@@ -381,6 +462,88 @@
                         }
                     },
                     cutout: '60%'
+                }
+            });
+            
+            // Weekly Chart
+            const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+            weeklyChart = new Chart(weeklyCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Incidents',
+                        data: [],
+                        backgroundColor: '#dc3545',
+                        borderColor: '#dc3545',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }, {
+                        label: 'Avg Uptime %',
+                        data: [],
+                        type: 'line',
+                        backgroundColor: '#28a745',
+                        borderColor: '#28a745',
+                        borderWidth: 2,
+                        fill: false,
+                        yAxisID: 'y1',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e0e0e0'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Incidents',
+                                color: '#e0e0e0'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            title: {
+                                display: true,
+                                text: 'Uptime %',
+                                color: '#e0e0e0'
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -457,6 +620,55 @@
             `).join('');
         }
         
+        function updateWeeklyChart(historyData) {
+            const labels = historyData.weekly_stats.map(day => 
+                day.is_today ? `${day.day_name} (Today)` : day.day_name
+            );
+            const incidents = historyData.weekly_stats.map(day => day.down_count);
+            const uptimes = historyData.weekly_stats.map(day => day.avg_uptime);
+            
+            weeklyChart.data.labels = labels;
+            weeklyChart.data.datasets[0].data = incidents;
+            weeklyChart.data.datasets[1].data = uptimes;
+            weeklyChart.update();
+        }
+        
+        function updateHistoryStats(historyData) {
+            const stats = historyData.summary;
+            const todayStats = historyData.weekly_stats.find(day => day.is_today);
+            
+            document.getElementById('historyStats').innerHTML = `
+                <div class="history-stat-card">
+                    <h4>Today's Incidents</h4>
+                    <div class="history-stat-value" style="color: ${todayStats?.down_count > 0 ? '#dc3545' : '#28a745'};">
+                        ${todayStats?.down_count || 0}
+                    </div>
+                    <div class="history-stat-label">Total incidents today</div>
+                </div>
+                <div class="history-stat-card">
+                    <h4>7-Day Total</h4>
+                    <div class="history-stat-value" style="color: #ffc107;">
+                        ${stats.total_incidents_week || 0}
+                    </div>
+                    <div class="history-stat-label">Total incidents this week</div>
+                </div>
+                <div class="history-stat-card">
+                    <h4>Weekly Average</h4>
+                    <div class="history-stat-value" style="color: #00d4ff;">
+                        ${stats.avg_uptime_week || 100}%
+                    </div>
+                    <div class="history-stat-label">Average uptime</div>
+                </div>
+                <div class="history-stat-card">
+                    <h4>Current Status</h4>
+                    <div class="history-stat-value" style="color: #28a745;">
+                        ${new Date().toLocaleDateString()}
+                    </div>
+                    <div class="history-stat-label">Last updated: ${new Date().toLocaleTimeString()}</div>
+                </div>
+            `;
+        }
+        
         function updateServersTable(monitors) {
             const grouped = {};
             monitors.forEach(monitor => {
@@ -505,9 +717,22 @@
                 });
         }
         
+        function fetchHistoryData() {
+            fetch('/monitor/history')
+                .then(response => response.json())
+                .then(historyData => {
+                    updateWeeklyChart(historyData);
+                    updateHistoryStats(historyData);
+                })
+                .catch(error => {
+                    console.error('Error fetching history data:', error);
+                });
+        }
+        
         // Initialize
-        initChart();
+        initCharts();
         fetchData();
+        fetchHistoryData();
         
         // Update countdown and refresh data
         setInterval(() => {
@@ -516,6 +741,7 @@
             
             if (countdown === 0) {
                 fetchData();
+                fetchHistoryData();
                 countdown = 30;
                 document.getElementById('countdown').textContent = countdown;
             }
